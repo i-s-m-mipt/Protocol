@@ -1,7 +1,9 @@
+#include <chrono>
 #include <cstdlib>
 #include <initializer_list>
 #include <iostream>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -58,14 +60,14 @@ namespace solution
 
 				command.data_length = 0x08;
 
-				command.data[0] = 0xEF;
-				command.data[1] = 0xCD;
-				command.data[2] = 0xAB;
-				command.data[3] = 0x89;
-				command.data[4] = 0x67;
-				command.data[5] = 0x45;
-				command.data[6] = 0x23;
-				command.data[7] = 0x01;
+				command.data[7] = 0xEF;
+				command.data[6] = 0xCD;
+				command.data[5] = 0xAB;
+				command.data[4] = 0x89;
+				command.data[3] = 0x67;
+				command.data[2] = 0x45;
+				command.data[1] = 0x23;
+				command.data[0] = 0x01;
 
 				send_command(command, socket);
 
@@ -74,6 +76,8 @@ namespace solution
 
 				m_sockets.push_back(std::move(socket));
 			}
+
+			std::this_thread::sleep_for(std::chrono::seconds(3));
 		}
 
 		~Controller() noexcept = default;
@@ -82,22 +86,40 @@ namespace solution
 
 		void move_forward()
 		{
+			Command command_1;
+			Command command_2;
 
+			// TODO
+
+			send_command(command_1, m_sockets[0]);
+			send_command(command_2, m_sockets[1]);
 		}
 
 		void move_backward()
 		{
+			Command command_1;
+			Command command_2;
 
+			// TODO
+
+			send_command(command_1, m_sockets[0]);
+			send_command(command_2, m_sockets[1]);
 		}
 
 		void stop()
 		{
+			Command command_1;
+			Command command_2;
 
+			// TODO
+
+			send_command(command_1, m_sockets[0]);
+			send_command(command_2, m_sockets[1]);
 		}
 
 	private:
 
-		void send_command(Command & command, const socket_t & socket)
+		void send_command(Command & command, socket_t & socket)
 		{
 			update_control_sum(command);
 
