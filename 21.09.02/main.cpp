@@ -1,6 +1,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <initializer_list>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <thread>
@@ -25,15 +26,35 @@ namespace solution
 
 	private:
 
-		struct Command
+		struct Command_REQUEST
 		{
 			std::uint8_t  control_sum      = 0x00;
-			std::uint8_t  protocol_version = 0x02; // default
+			std::uint8_t  protocol_version = 0x02;
 			std::uint8_t  command_type     = 0x00;
 			std::uint8_t  command_id       = 0x00;
 			std::uint16_t data_length      = 0x00;
+		};
 
-			std::uint8_t  data[1024] = {}; // max 1024
+		struct Command_REQUEST_PASSWORD
+		{
+			std::uint8_t  control_sum      = 0x00;
+			std::uint8_t  protocol_version = 0x02;
+			std::uint8_t  command_type     = 0x00;
+			std::uint8_t  command_id       = 0x00;
+			std::uint16_t data_length      = 0x08;
+
+			std::uint8_t  data[8] = {};
+		};
+
+		struct Command_RESPONSE
+		{
+			std::uint8_t  control_sum      = 0x00;
+			std::uint8_t  protocol_version = 0x02;
+			std::uint8_t  command_type     = 0x01;
+			std::uint8_t  command_id       = 0x00;
+			std::uint16_t data_length      = 0x07;
+
+			std::uint8_t  data[7] = {};
 		};
 
 	public:
@@ -54,22 +75,38 @@ namespace solution
 				std::cout << "Socket on [" << ip_address << ":" << port <<
 					"] successfully created" << std::endl;
 
-				Command command;
+				Command_REQUEST command_request;
 
-				send_command(command, socket);
+				send_command(command_request, socket);
 
-				command.data_length = 0x08;
+				Command_REQUEST_PASSWORD command_request_password;
+				
+				command_request_password.data[0] = 0xEF;
+				command_request_password.data[1] = 0xCD;
+				command_request_password.data[2] = 0xAB;
+				command_request_password.data[3] = 0x89;
+				command_request_password.data[4] = 0x67;
+				command_request_password.data[5] = 0x45;
+				command_request_password.data[6] = 0x23;
+				command_request_password.data[7] = 0x01;
 
-				command.data[7] = 0xEF;
-				command.data[6] = 0xCD;
-				command.data[5] = 0xAB;
-				command.data[4] = 0x89;
-				command.data[3] = 0x67;
-				command.data[2] = 0x45;
-				command.data[1] = 0x23;
-				command.data[0] = 0x01;
+				send_command(command_request_password, socket);
 
-				send_command(command, socket);
+				const auto length = sizeof(Command_RESPONSE);
+
+				char buffer[length];
+
+				boost::asio::read(socket, boost::asio::buffer(buffer, length));
+												
+				Command_RESPONSE command_response = 
+					*reinterpret_cast < Command_RESPONSE * >((std::uint8_t*)buffer);
+
+				std::cout << std::hex << command_response.control_sum << std::endl;
+				std::cout << std::hex << command_response.protocol_version << std::endl;
+				std::cout << std::hex << command_response.command_type << std::endl;
+				std::cout << std::hex << command_response.command_id << std::endl;
+				std::cout << std::hex << command_response.data_length << std::endl;
+				std::cout << std::hex << command_response.data[2] << std::endl;
 
 				std::cout << "Controller on [" << ip_address << ":" << port <<
 					"] ready to work" << std::endl;
@@ -86,40 +123,41 @@ namespace solution
 
 		void move_forward()
 		{
-			Command command_1;
-			Command command_2;
+			//Command command_1;
+			//Command command_2;
 
-			// TODO
+			//// TODO
 
-			send_command(command_1, m_sockets[0]);
-			send_command(command_2, m_sockets[1]);
+			//send_command(command_1, m_sockets[0]);
+			//send_command(command_2, m_sockets[1]);
 		}
 
 		void move_backward()
 		{
-			Command command_1;
-			Command command_2;
+			//Command command_1;
+			//Command command_2;
 
-			// TODO
+			//// TODO
 
-			send_command(command_1, m_sockets[0]);
-			send_command(command_2, m_sockets[1]);
+			//send_command(command_1, m_sockets[0]);
+			//send_command(command_2, m_sockets[1]);
 		}
 
 		void stop()
 		{
-			Command command_1;
-			Command command_2;
+			//Command command_1;
+			//Command command_2;
 
-			// TODO
+			//// TODO
 
-			send_command(command_1, m_sockets[0]);
-			send_command(command_2, m_sockets[1]);
+			//send_command(command_1, m_sockets[0]);
+			//send_command(command_2, m_sockets[1]);
 		}
 
 	private:
 
-		void send_command(Command & command, socket_t & socket)
+		template < typename T >
+		void send_command(T & command, socket_t & socket)
 		{
 			update_control_sum(command);
 
@@ -127,7 +165,8 @@ namespace solution
 				&command, sizeof(command)));
 		}
 
-		void update_control_sum(Command & command)
+		template < typename T >
+		void update_control_sum(T & command)
 		{
 			command.control_sum = get_control_sum(
 				(uint8_t *)&command.control_sum, sizeof(command));
@@ -165,6 +204,8 @@ using Controller = solution::Controller;
 
 int main(int argc, char ** argv)
 {
+	system("chcp 1251");
+
 	try
 	{
 		{
