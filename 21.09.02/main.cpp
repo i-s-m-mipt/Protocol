@@ -76,6 +76,17 @@ namespace solution
 			std::uint32_t data    : 22;
 		};
 
+		struct Command_STATUS
+		{
+			std::uint8_t  control_sum      = 0x00;
+			std::uint8_t  protocol_version = 0x03;
+			std::uint8_t  command_type     = 0x02;
+			std::uint8_t  command_id       = 0x00;
+			std::uint16_t data_length      = 0x07;
+
+			std::uint8_t  data[7] = {};
+		};
+
 	public:
 
 		explicit Controller(const std::initializer_list < 
@@ -187,8 +198,17 @@ namespace solution
 
 			print_data(buffer, length);
 
-			//send_command(command_move, m_sockets[0]);
-			//send_command(command_move, m_sockets[1]);
+			const auto length_status = sizeof(Command_STATUS) - 1;
+
+			send_command(command_move, m_sockets[0]);
+			char buffer_status_0[length_status];
+			boost::asio::read(m_sockets[0], boost::asio::buffer(buffer_status_0, length_status));
+			print_data(buffer_status_0, length_status);
+
+			send_command(command_move, m_sockets[1]);
+			char buffer_status_1[length_status];
+			boost::asio::read(m_sockets[1], boost::asio::buffer(buffer_status_1, length_status));
+			print_data(buffer_status_1, length_status);
 		}
 
 	private:
@@ -268,7 +288,7 @@ int main(int argc, char ** argv)
 		{
 			Controller controller({
 				{ "192.168.1.2", 5000U}, 
-				{ "192.168.1.3", 5000U} });
+				{ "192.168.1.3", 5001U} });
 
 			char command = ' ';
 
@@ -282,7 +302,7 @@ int main(int argc, char ** argv)
 				{
 				case 'f': case 'F': case 'b': case 'B': case 's': case 'S':
 				{
-					controller.move(command, 100);
+					controller.move(command, 1000);
 
 					break;
 				}
