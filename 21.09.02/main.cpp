@@ -16,17 +16,19 @@ namespace solution
 	{
 	public:
 
-		using endpoint_t = boost::asio::ip::tcp::endpoint;
+		using protocol_t = boost::asio::ip::tcp;
+
+		using endpoint_t = protocol_t::endpoint;
 
 		using ip_address_t = boost::asio::ip::address;
 
-		using socket_t = boost::asio::ip::tcp::socket;
+		using socket_t = protocol_t::socket;
 
 		using sockets_container_t = std::vector < socket_t > ;
 
 	private:
 
-		struct Command_REQUEST
+		struct REQUEST
 		{
 			std::uint8_t  control_sum      = 0x00;
 			std::uint8_t  protocol_version = 0x03;
@@ -35,7 +37,7 @@ namespace solution
 			std::uint16_t data_length      = 0x00;
 		};
 
-		struct Command_PASSWORD
+		struct PASSWORD
 		{
 			std::uint8_t  control_sum      = 0x00;
 			std::uint8_t  protocol_version = 0x03;
@@ -46,7 +48,7 @@ namespace solution
 			std::uint8_t  data[8] = {};
 		};
 
-		struct Command_RESPONSE
+		struct RESPONSE
 		{
 			std::uint8_t  control_sum      = 0x00;
 			std::uint8_t  protocol_version = 0x03;
@@ -76,7 +78,7 @@ namespace solution
 			std::uint32_t data    : 22;
 		};
 
-		struct Command_STATUS
+		struct STATUS
 		{
 			std::uint8_t  control_sum      = 0x00;
 			std::uint8_t  protocol_version = 0x03;
@@ -96,51 +98,43 @@ namespace solution
 
 			for (const auto & [ip_address, port] : endpoints)
 			{
-				endpoint_t enpoint(ip_address_t::from_string(ip_address), port);
+				endpoint_t endpoint(ip_address_t::from_string(ip_address), port);
 
-				socket_t socket(m_io_service, enpoint.protocol());
+				socket_t socket(m_io_service, endpoint.protocol());
 
-				socket.connect(enpoint);
+				socket.connect(endpoint);
 
-				std::cout << "Socket on [" << ip_address << ":" << port <<
-					"] successfully created" << std::endl;
+				std::cout << "Socket on [" << ip_address << ":" << port << "] " <<
+					"successfully created" << std::endl;
 
-				const auto length_request = sizeof(Command_REQUEST);
+				receive(socket, sizeof(REQUEST));
 
-				char buffer_request[length_request];
-
-				boost::asio::read(socket, boost::asio::buffer(buffer_request, length_request));
-
-				print_data(buffer_request, length_request);
-
-				Command_PASSWORD command_password;
+				PASSWORD password;
 				
-				command_password.data[0] = 0xEF;
-				command_password.data[1] = 0xCD;
-				command_password.data[2] = 0xAB;
-				command_password.data[3] = 0x89;
-				command_password.data[4] = 0x67;
-				command_password.data[5] = 0x45;
-				command_password.data[6] = 0x23;
-				command_password.data[7] = 0x01;
+				password.data[0] = 0xEF;
+				password.data[1] = 0xCD;
+				password.data[2] = 0xAB;
+				password.data[3] = 0x89;
+				password.data[4] = 0x67;
+				password.data[5] = 0x45;
+				password.data[6] = 0x23;
+				password.data[7] = 0x01;
 
-				send_command(command_password, socket);
-
-				const auto length_response = sizeof(Command_RESPONSE) - 1;
-
-				char buffer_response[length_response];
-
-				boost::asio::read(socket, boost::asio::buffer(buffer_response, length_response));
-
-				print_data(buffer_response, length_response);
-
-				std::cout << "Controller on [" << ip_address << ":" << port <<
-					"] ready to work" << std::endl;
+				send(socket, password);
+				
+				if (receive(socket, sizeof(RESPONSE) - 1) == ok_access)
+				{
+					std::cout << "Controller on [" << ip_address << ":" << 
+						port << "] " << "ready to work" << std::endl;
+				}
+				else
+				{
+					std::cout << "Controller on [" << ip_address << ":" <<
+						port << "] " << "failed to login" << std::endl;
+				}
 
 				m_sockets.push_back(std::move(socket));
 			}
-
-			std::this_thread::sleep_for(std::chrono::seconds(3));
 		}
 
 		~Controller() noexcept = default;
@@ -149,34 +143,41 @@ namespace solution
 
 		void move(char direction, std::uint32_t speed = 0)
 		{
-			SMSD_Command smsd_command;
+			SMSD_Command smsd_command_1;
+			SMSD_Command smsd_command_2;
 
-			smsd_command.reserve = 0;
-			smsd_command.action  = 0;
+			smsd_command_1.reserve = 0;
+			smsd_command_2.reserve = 0;
 
-			const std::uint32_t min_speed = 15;
-			const std::uint32_t max_speed = 15600;
+			smsd_command_1.action = 0;
+			smsd_command_2.action = 0;
 
-			smsd_command.data = std::min(std::max(speed, min_speed), max_speed);
+			smsd_command_1.data = std::min(std::max(speed, min_speed), max_speed);
+			smsd_command_2.data = std::min(std::max(speed, min_speed), max_speed);
 
 			switch (direction)
 			{
 			case 'f': case 'F':
 			{
-				smsd_command.command = 0x0E;
+				smsd_command_1.command = 0x0E;
+				smsd_command_2.command = 0x0F;
 
 				break;
 			}
 			case 'b': case 'B':
 			{
-				smsd_command.command = 0x0F;
+				smsd_command_1.command = 0x0F;
+				smsd_command_2.command = 0x0E;
 
 				break;
 			}
 			case 's': case 'S':
 			{
-				smsd_command.command = 0x0E;
-				smsd_command.data    = 0;
+				smsd_command_1.command = 0x0E;
+				smsd_command_2.command = 0x0F;
+
+				smsd_command_1.data = 0;
+				smsd_command_2.data = 0;
 
 				break;
 			}
@@ -186,42 +187,82 @@ namespace solution
 			}
 			}
 
-			Command_MOVE command_move;
+			Command_MOVE command_move_1;
+			Command_MOVE command_move_2;
 
-			memcpy(command_move.data, &smsd_command, sizeof(smsd_command));
+			memcpy(command_move_1.data, &smsd_command_1, sizeof(smsd_command_1));
+			memcpy(command_move_2.data, &smsd_command_2, sizeof(smsd_command_2));
 
-			const auto length = sizeof(Command_MOVE);
+			send(m_sockets[0], command_move_1);
 
-			char buffer[length];
+			receive(m_sockets[0], sizeof(STATUS) - 1);
 
-			memcpy(buffer, &command_move, length);
+			send(m_sockets[1], command_move_2);
 
-			print_data(buffer, length);
+			receive(m_sockets[1], sizeof(STATUS) - 1);
+		}
 
-			const auto length_status = sizeof(Command_STATUS) - 1;
+		void stop()
+		{
+			SMSD_Command smsd_command_1;
+			SMSD_Command smsd_command_2;
 
-			send_command(command_move, m_sockets[0]);
-			char buffer_status_0[length_status];
-			boost::asio::read(m_sockets[0], boost::asio::buffer(buffer_status_0, length_status));
-			print_data(buffer_status_0, length_status);
+			smsd_command_1.reserve = 0;
+			smsd_command_2.reserve = 0;
 
-			send_command(command_move, m_sockets[1]);
-			char buffer_status_1[length_status];
-			boost::asio::read(m_sockets[1], boost::asio::buffer(buffer_status_1, length_status));
-			print_data(buffer_status_1, length_status);
+			smsd_command_1.action = 0;
+			smsd_command_2.action = 0;
+
+			smsd_command_1.command = 0x22;
+			smsd_command_2.command = 0x22;
+
+			smsd_command_1.data = 0;
+			smsd_command_2.data = 0;
+			
+			Command_MOVE command_move_1;
+			Command_MOVE command_move_2;
+
+			memcpy(command_move_1.data, &smsd_command_1, sizeof(smsd_command_1));
+			memcpy(command_move_2.data, &smsd_command_2, sizeof(smsd_command_2));
+
+			send(m_sockets[0], command_move_1);
+
+			receive(m_sockets[0], sizeof(STATUS) - 1);
+
+			send(m_sockets[1], command_move_2);
+
+			receive(m_sockets[1], sizeof(STATUS) - 1);
 		}
 
 	private:
 
-		void print_data(char * buffer, std::size_t length)
+		std::uint8_t receive(socket_t & socket, std::size_t length)
+		{
+			std::uint8_t buffer[1024];
+
+			boost::asio::read(socket, boost::asio::buffer(buffer, length));
+
+			// print_data(buffer, length);
+
+			if (length > 8)
+			{
+				return (buffer[8]);
+			}
+			else
+			{
+				return 0x00;
+			}
+		}
+
+		void print_data(std::uint8_t * buffer, std::size_t length)
 		{
 			for (auto i = 0U; i < length; ++i)
 			{
 				auto c = buffer[i];
 
-				unsigned char mask = 128;
+				std::uint8_t mask = 128;
 
-				for (auto j = 0U; j < 8U; ++j) 
+				for (auto j = 0U; j < 8U; ++j)
 				{
 					std::cout << ((mask & c) ? "1" : "0");
 
@@ -235,7 +276,7 @@ namespace solution
 		}
 
 		template < typename T >
-		void send_command(T & command, socket_t & socket)
+		void send(socket_t & socket, T & command)
 		{
 			update_control_sum(command);
 
@@ -246,7 +287,7 @@ namespace solution
 		void update_control_sum(T & command)
 		{
 			command.control_sum = get_control_sum(
-				(uint8_t *)&command.control_sum, sizeof(command));
+				&command.control_sum, sizeof(command));
 		}
 
 		std::uint8_t get_control_sum(std::uint8_t * data, std::uint16_t length)
@@ -270,9 +311,18 @@ namespace solution
 
 	private:
 
+		static inline const std::uint8_t ok_access = 0x01;
+
+		static inline const std::uint32_t min_speed = 15;
+		static inline const std::uint32_t max_speed = 15600;
+
+	private:
+
 		boost::asio::io_service m_io_service;
 
 		sockets_container_t m_sockets;
+
+		std::uint8_t m_command_id = 0;
 	};
 
 } // namespace solution
@@ -300,9 +350,19 @@ int main(int argc, char ** argv)
 
 				switch (command)
 				{
-				case 'f': case 'F': case 'b': case 'B': case 's': case 'S':
+				case 'f': case 'F': case 'b': case 'B':
 				{
-					controller.move(command, 1000);
+					std::uint32_t speed = 0;
+
+					std::cin >> speed;
+
+					controller.move(command, speed);
+
+					break;
+				}
+				case 's': case 'S':
+				{
+					controller.stop();
 
 					break;
 				}
