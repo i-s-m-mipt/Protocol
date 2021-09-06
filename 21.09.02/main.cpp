@@ -141,7 +141,7 @@ namespace solution
 
 	public:
 
-		void move(char direction, std::uint32_t speed = 0)
+		void move(char direction, std::uint32_t speed = 0U)
 		{
 			Command command_1;
 			Command command_2;
@@ -234,6 +234,38 @@ namespace solution
 			receive(m_sockets[1], sizeof(Status) - 1);
 		}
 
+		void set_acceleration(std::uint32_t acceleration = 0U)
+		{
+			Command command_1;
+			Command command_2;
+
+			command_1.reserve = 0;
+			command_2.reserve = 0;
+
+			command_1.action = 0;
+			command_2.action = 0;
+
+			command_1.command = 0x07;
+			command_2.command = 0x07;
+
+			command_1.data = std::min(std::max(acceleration, min_acceleration), max_acceleration);
+			command_2.data = std::min(std::max(acceleration, min_acceleration), max_acceleration);
+
+			Package package_1;
+			Package package_2;
+
+			memcpy(package_1.data, &command_1, sizeof(command_1));
+			memcpy(package_2.data, &command_2, sizeof(command_2));
+
+			send(m_sockets[0], package_1);
+
+			receive(m_sockets[0], sizeof(Status) - 1);
+
+			send(m_sockets[1], package_2);
+
+			receive(m_sockets[1], sizeof(Status) - 1);
+		}
+
 	private:
 
 		std::uint8_t receive(socket_t & socket, std::size_t length)
@@ -302,27 +334,21 @@ namespace solution
 			return (s ^ 0xFF);
 		}
 
-	public:
-
-		const auto & sockets() const noexcept
-		{
-			return m_sockets;
-		}
-
 	private:
 
 		static inline const std::uint8_t ok_access = 0x01;
 
-		static inline const std::uint32_t min_speed = 15;
-		static inline const std::uint32_t max_speed = 15600;
+		static inline const std::uint32_t min_speed = 15U;
+		static inline const std::uint32_t max_speed = 15600U;
+
+		static inline const std::uint32_t min_acceleration = 15U;
+		static inline const std::uint32_t max_acceleration = 59000U;
 
 	private:
 
 		boost::asio::io_service m_io_service;
 
 		sockets_container_t m_sockets;
-
-		std::uint8_t m_command_id = 0;
 	};
 
 } // namespace solution
@@ -352,9 +378,12 @@ int main(int argc, char ** argv)
 				{
 				case 'f': case 'F': case 'b': case 'B':
 				{
-					std::uint32_t speed = 0;
+					std::uint32_t speed = 0U;
+					std::uint32_t acceleration = 0U;
 
-					std::cin >> speed;
+					std::cin >> speed >> acceleration;
+
+					controller.set_acceleration(acceleration);
 
 					controller.move(command, speed);
 
