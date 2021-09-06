@@ -28,7 +28,7 @@ namespace solution
 
 	private:
 
-		struct REQUEST
+		struct Request
 		{
 			std::uint8_t  control_sum      = 0x00;
 			std::uint8_t  protocol_version = 0x03;
@@ -37,7 +37,7 @@ namespace solution
 			std::uint16_t data_length      = 0x00;
 		};
 
-		struct PASSWORD
+		struct Password
 		{
 			std::uint8_t  control_sum      = 0x00;
 			std::uint8_t  protocol_version = 0x03;
@@ -48,7 +48,7 @@ namespace solution
 			std::uint8_t  data[8] = {};
 		};
 
-		struct RESPONSE
+		struct Response
 		{
 			std::uint8_t  control_sum      = 0x00;
 			std::uint8_t  protocol_version = 0x03;
@@ -59,7 +59,7 @@ namespace solution
 			std::uint8_t  data[7] = {};
 		};
 
-		struct Command_MOVE
+		struct Package
 		{
 			std::uint8_t  control_sum      = 0x00;
 			std::uint8_t  protocol_version = 0x03;
@@ -70,7 +70,7 @@ namespace solution
 			std::uint8_t  data[4] = {};
 		};
 
-		struct SMSD_Command
+		struct Command
 		{
 			std::uint32_t reserve : 3;
 			std::uint32_t action  : 1;
@@ -78,7 +78,7 @@ namespace solution
 			std::uint32_t data    : 22;
 		};
 
-		struct STATUS
+		struct Status
 		{
 			std::uint8_t  control_sum      = 0x00;
 			std::uint8_t  protocol_version = 0x03;
@@ -107,9 +107,9 @@ namespace solution
 				std::cout << "Socket on [" << ip_address << ":" << port << "] " <<
 					"successfully created" << std::endl;
 
-				receive(socket, sizeof(REQUEST));
+				receive(socket, sizeof(Request));
 
-				PASSWORD password;
+				Password password;
 				
 				password.data[0] = 0xEF;
 				password.data[1] = 0xCD;
@@ -122,7 +122,7 @@ namespace solution
 
 				send(socket, password);
 				
-				if (receive(socket, sizeof(RESPONSE) - 1) == ok_access)
+				if (receive(socket, sizeof(Response) - 1) == ok_access)
 				{
 					std::cout << "Controller on [" << ip_address << ":" << 
 						port << "] " << "ready to work" << std::endl;
@@ -143,41 +143,41 @@ namespace solution
 
 		void move(char direction, std::uint32_t speed = 0)
 		{
-			SMSD_Command smsd_command_1;
-			SMSD_Command smsd_command_2;
+			Command command_1;
+			Command command_2;
 
-			smsd_command_1.reserve = 0;
-			smsd_command_2.reserve = 0;
+			command_1.reserve = 0;
+			command_2.reserve = 0;
 
-			smsd_command_1.action = 0;
-			smsd_command_2.action = 0;
+			command_1.action = 0;
+			command_2.action = 0;
 
-			smsd_command_1.data = std::min(std::max(speed, min_speed), max_speed);
-			smsd_command_2.data = std::min(std::max(speed, min_speed), max_speed);
+			command_1.data = std::min(std::max(speed, min_speed), max_speed);
+			command_2.data = std::min(std::max(speed, min_speed), max_speed);
 
 			switch (direction)
 			{
 			case 'f': case 'F':
 			{
-				smsd_command_1.command = 0x0E;
-				smsd_command_2.command = 0x0F;
+				command_1.command = 0x0E;
+				command_2.command = 0x0F;
 
 				break;
 			}
 			case 'b': case 'B':
 			{
-				smsd_command_1.command = 0x0F;
-				smsd_command_2.command = 0x0E;
+				command_1.command = 0x0F;
+				command_2.command = 0x0E;
 
 				break;
 			}
 			case 's': case 'S':
 			{
-				smsd_command_1.command = 0x0E;
-				smsd_command_2.command = 0x0F;
+				command_1.command = 0x0E;
+				command_2.command = 0x0F;
 
-				smsd_command_1.data = 0;
-				smsd_command_2.data = 0;
+				command_1.data = 0;
+				command_2.data = 0;
 
 				break;
 			}
@@ -187,51 +187,51 @@ namespace solution
 			}
 			}
 
-			Command_MOVE command_move_1;
-			Command_MOVE command_move_2;
+			Package package_1;
+			Package package_2;
 
-			memcpy(command_move_1.data, &smsd_command_1, sizeof(smsd_command_1));
-			memcpy(command_move_2.data, &smsd_command_2, sizeof(smsd_command_2));
+			memcpy(package_1.data, &command_1, sizeof(command_1));
+			memcpy(package_2.data, &command_2, sizeof(command_2));
 
-			send(m_sockets[0], command_move_1);
+			send(m_sockets[0], package_1);
 
-			receive(m_sockets[0], sizeof(STATUS) - 1);
+			receive(m_sockets[0], sizeof(Status) - 1);
 
-			send(m_sockets[1], command_move_2);
+			send(m_sockets[1], package_2);
 
-			receive(m_sockets[1], sizeof(STATUS) - 1);
+			receive(m_sockets[1], sizeof(Status) - 1);
 		}
 
 		void stop()
 		{
-			SMSD_Command smsd_command_1;
-			SMSD_Command smsd_command_2;
+			Command command_1;
+			Command command_2;
 
-			smsd_command_1.reserve = 0;
-			smsd_command_2.reserve = 0;
+			command_1.reserve = 0;
+			command_2.reserve = 0;
 
-			smsd_command_1.action = 0;
-			smsd_command_2.action = 0;
+			command_1.action = 0;
+			command_2.action = 0;
 
-			smsd_command_1.command = 0x22;
-			smsd_command_2.command = 0x22;
+			command_1.command = 0x22;
+			command_2.command = 0x22;
 
-			smsd_command_1.data = 0;
-			smsd_command_2.data = 0;
+			command_1.data = 0;
+			command_2.data = 0;
 			
-			Command_MOVE command_move_1;
-			Command_MOVE command_move_2;
+			Package package_1;
+			Package package_2;
 
-			memcpy(command_move_1.data, &smsd_command_1, sizeof(smsd_command_1));
-			memcpy(command_move_2.data, &smsd_command_2, sizeof(smsd_command_2));
+			memcpy(package_1.data, &command_1, sizeof(command_1));
+			memcpy(package_2.data, &command_2, sizeof(command_2));
 
-			send(m_sockets[0], command_move_1);
+			send(m_sockets[0], package_1);
 
-			receive(m_sockets[0], sizeof(STATUS) - 1);
+			receive(m_sockets[0], sizeof(Status) - 1);
 
-			send(m_sockets[1], command_move_2);
+			send(m_sockets[1], package_2);
 
-			receive(m_sockets[1], sizeof(STATUS) - 1);
+			receive(m_sockets[1], sizeof(Status) - 1);
 		}
 
 	private:
